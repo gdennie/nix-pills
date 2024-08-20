@@ -297,7 +297,7 @@ An important separation is made in Nix:
 
 Think of it as of compile time and link time like with C/C++ projects. You first compile all source files to object files. Then link object files in a single executable.
 
-In Nix, first the Nix expression (usually in a .nix file) is compiled to .drv, then each .drv is built and the product is installed in the relative out paths.
+In Nix, the Nix expression (usually in a .nix file) is first compiled to a .drv file and stored in the Nix Store. It will have a hashed name, of course, and a hashed name output path based on the inputs. In particular, all inputs referenced now by .drv are copied into the Nix Store and given a hash code if they are not already there. As a result, a .drv is fully resolved by the Nixx Store and ready to be built. Finally, the .drv is built and the product of the builder executable it contains is installed in the precalculated output path(s). Note, the paths are available to be used by the builder executable and if the builder does not use those paths its output will not be preserved.
 
 ## Conclusion
 
