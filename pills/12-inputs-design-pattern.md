@@ -18,7 +18,7 @@ Nix follows the "single repository" pattern by placing all descriptions of all p
 
 For the rest of this pill, we will adopt the single repository pattern. The natural implementation in Nix is to create a top-level Nix expression, followed by one expression for each package. The top-level expression imports and combines all package expressions in an attribute set mapping names to packages.
 
-In some programming languages, such an approach \-- including every possible package description in a single data structure \-- would be untenable due to the language needing to load the entire data structure into memory before operating on it. Nix, however, is a lazy language and only evaluates what is needed.
+In some programming languages, such an approach of including every possible package description within a single data structure would be untenable due to the language needing to evaluate and thereby load the entire data structure into memory before obtaining from it. Nix, however, is a lazy language and only evaluates what is needed and only when it is needed.
 
 ## Packaging `graphviz`
 
