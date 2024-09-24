@@ -52,17 +52,13 @@ That's hard to maintain. Using `callPackage` would be easier:
 mygraphviz = callPackage ./graphviz.nix { gd = customgd; };
 ```
 
-But we may still be diverging from the original graphviz in the repository.
-
-We would like to avoid specifying the nix expression again. Instead, we would like to reuse the original `graphviz` attribute in the repository and add our overrides like so:
+But we may still be diverging from the original graphviz in the repository since it will be a new invocation with new arguments that may be different in some ways. Consequently, we would like to avoid specifying the nix expression again. Instead, we would like to reuse the original `graphviz` attribute in the repository and merely add our overrides like so:
 
 ```nix
 mygraphviz = graphviz.override { gd = customgd; };
 ```
 
-The difference is obvious, as well as the advantages of this approach.
-
-Note: that `.override` is not a "method" in the OO sense as you may think. Nix is a functional language. The`.override` is simply an attribute of a set.
+Note: that `.override` is not a "method" in the OO sense as you may think. Nix is a functional language. The`.override` is simply an attribute of a set containing a function. As you will see below, this function is a closure over the function and initial arguments creating the package.
 
 ## The override implementation
 
