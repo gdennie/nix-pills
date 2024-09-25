@@ -6,7 +6,9 @@ Today we'll talk about a special attribute: `config.packageOverrides`. Overridin
 
 ## Overriding a package
 
-Recall the override design pattern from the [nix pill 14](14-override-design-pattern.md). Instead of calling a function with parameters directly, we make the call (function + parameters) overridable.
+Recall the override design pattern from [nix pill 14](14-override-design-pattern.md) where we develop a function, `makeOverridable` to invoke and augment the set returning invocation of a function with an `override` attribute containing a function that captures the original function and arguments while accepting a new set of arguments to merge/override the prexisting set, creating a new result at the 
+
+Instead of calling a function with parameters directly, we make the call (function + parameters) overridable.
 
 We put the override function in the returned attribute set of the original function call.
 
@@ -37,13 +39,15 @@ Given `pkgs.P` depends on `pkgs.graphviz`, it's easy to build `P` with the repla
 
 ## Fixed point
 
-The fixed point with lazy evaluation is crippling but about necessary in a language like Nix. It lets us achieve something similar to what we'd do imperatively.
+The fixed point with lazy evaluation is complicated but necessary in a functional static language like Nix. It lets us achieve something similar to what we'd do imperatively with loops and mutable variables, accumulate a total or such.
 
 Follows the definition of fixed point in [nixpkgs](https://github.com/NixOS/nixpkgs/blob/f224a4f1b32b3e813783d22de54e231cd8ea2448/lib/fixed-points.nix#L19):
 
 ```nix
 {
-  # Take a function and evaluate it with its own returned value.
+  # Accept a lambda, `f`, that encloses its input and output arguments
+  # in one data type, `result`. `f` must also contain a suitable initial
+  # value for `result`.
   fix =
     f:
     let
@@ -53,9 +57,9 @@ Follows the definition of fixed point in [nixpkgs](https://github.com/NixOS/nixp
 }
 ```
 
-It's a function that accepts a function `f`, calls `f result` on the result just returned by `f result` and returns it. In other words it's `f(f(f(....`
+It's a function that accepts a function `f`, calls `f result` on that function which produces a lazy version of `result` whose attributes then become resolved upon request.
 
-At first sight, it's an infinite loop. With lazy evaluation it isn't, because the call is done only when needed.
+At first sight, it might look like a useless infinite loop; however, with lazy evaluation it isn't, because the call is done only when needed.
 
 ```console
 nix-repl> fix = f: let result = f result; in result
@@ -64,21 +68,27 @@ nix-repl> fix pkgs
 { a = 3; b = 4; c = 7; }
 ```
 
-Without the `rec` keyword, we were able to refer to `a` and `b` of the same set.
+The evaluation is substitution and proceeds as follows...
 
-- First `pkgs` gets called with an unevaluated thunk `(pkgs(pkgs(...)`
+```console
+fix pkgs
+(f: let result = f result; in result) pkgs
+let result = pkgs result; in result
+let result = (self: { a = 3; b = 4; c = self.a+self.b; }) result; in result
+let result = { a = 3; b = 4; c = result.a+result.b; }; in result
+let result in { a = 3; b = 4; c = result.a+result.b; }
+{ a = 3; b = 4; c = 7; }  // `c` evaluated from closure over `result` only when called
+```
 
-- To set the value of `c` then `self.a` and `self.b` are evaluated.
+Note that even without the `rec` keyword, we were able to refer to `a` and `b` of the same set. As you can see, it is because the reference was to the instance in arguments and not to the returned set itself.
 
-- The `pkgs` function gets called again to get the value of `a` and `b`.
+Note, `fix` is accepting a function, `f`, that will accept a structure, `result`, containing both the input arguments as well as the output. Additionally, `f` must contain initial values for the input arguments and the output arguments must be expressions over the instance of `result` passed into `f` as arguments.
 
-The trick is that `c` is not needed to be evaluated in the inner call, thus it doesn't go in an infinite loop.
-
-Won't go further with the explanation here. A good post about fixed point and Nix can be [found here](http://r6.ca/blog/20140422T142911Z.html).
+We won't go further with the explanation here. A good post about fixed point and Nix can be [found here](http://r6.ca/blog/20140422T142911Z.html).
 
 ### Overriding a set with fixed point
 
-Given that `self.a` and `self.b` refer to the passed set and not to the literal set in the function, we're able to override both `a` and `b` and get a new value for `c`:
+Given that `self.a` and `self.b` refer to the passed in set and not to the literal set in the function, we're able to override both `a` and `b` and get a new value for `c`:
 
 ```console
 nix-repl> overrides = { a = 1; b = 2; }
@@ -88,7 +98,7 @@ nix-repl> let newpkgs = pkgs (newpkgs // overrides); in newpkgs // overrides
 { a = 1; b = 2; c = 3; }
 ```
 
-In the first case we computed pkgs with the overrides, in the second case we also included the overridden attributes in the result.
+In the first case we computed pkgs with the overrides, in the second case we *also* included the overridden input attributes in the result.
 
 ## Overriding nixpkgs packages
 
@@ -100,7 +110,7 @@ Create a `config.nix` file like this somewhere:
 
 ```nix
 {
-    packageOverrides = pkgs: {
+  packageOverrides = pkgs: {
     graphviz = pkgs.graphviz.override {
       # disable xorg support
       withXorg = false;
